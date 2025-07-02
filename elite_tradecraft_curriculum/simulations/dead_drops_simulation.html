@@ -1,0 +1,147 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dead Drops Simulation - TradeCraft.Lifestyle</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const DeadDropsSimulation = () => {
+            const [userRole, setUserRole] = useState('PI');
+            const [dropType, setDropType] = useState('Physical');
+            const [plan, setPlan] = useState('');
+            const [score, setScore] = useState(0);
+            const [feedback, setFeedback] = useState('');
+
+            const scenarios = {
+                PI: 'Transfer evidence in a public park.',
+                Parent: 'Share a secure note with a family member.',
+                Enthusiast: 'Practice a hobbyist drop in a market.'
+            };
+
+            const handleSubmit = async () => {
+                if (!plan) return;
+                const newScore = plan.includes('encrypt') || plan.includes('public') ? 80 : 50;
+                setScore(newScore);
+                setFeedback(plan.includes('public') ? 'Good choice of public location!' : 'Consider using a public location.');
+                
+                // Save progress to Firebase
+                await db.collection('users').doc('user_id').collection('simulations').add({
+                    module: 'dead_drops',
+                    role: userRole,
+                    dropType,
+                    score: newScore,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto p-6">
+                    <h1 className="text-3xl font-bold mb-4">Dead Drops Simulation</h1>
+                    <p className="mb-4">Premium Tier: Plan a secure dead drop.</p>
+                    <select 
+                        className="mb-4 p-2 border rounded"
+                        value={userRole} 
+                        onChange={(e) => setUserRole(e.target.value)}
+                    >
+                        <option value="PI">Private Investigator</option>
+                        <option value="Parent">Parent</option>
+                        <option value="Enthusiast">Enthusiast</option>
+                    </select>
+                    <select 
+                        className="mb-4 p-2 border rounded"
+                        value={dropType} 
+                        onChange={(e) => setDropType(e.target.value)}
+                    >
+                        <option value="Physical">Physical Drop</option>
+                        <option value="Digital">Digital Drop</option>
+                    </select>
+                    <p className="mb-4">Scenario: {scenarios[userRole]}</p>
+                    <textarea
+                        className="w-full p-4 border rounded mb-4"
+                        rows="5"
+                        placeholder="Describe your drop plan (e.g., location, concealment, encryption)..."
+                        value={plan}
+                        onChange={(e) => setPlan(e.target.value)}
+                    />
+                    <button 
+                        className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                        onClick={handleSubmit}
+                    >
+                        Submit Plan
+                    </button>
+                    {score > 0 && (
+                        <div className="mt-4 p-4 bg-white rounded shadow">
+                            <p><strong>Score:</strong> {score}/100</p>
+                            <p><strong>Feedback:</strong> {feedback}</p>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<DeadDropsSimulation />, document.getElementById('root'));
+    </script>
+</body>
+</html>
